@@ -842,9 +842,8 @@ private:
         eye = { center.x + camDist * cp * cy,
                 center.y + camDist * sp,
                 center.z + camDist * cp * sy };
-        viewInv = inverse(lookAtRH(eye, center, up));
-        projInv = inverse(perspectiveVk(60.0f * 3.14159265f / 180.0f,
-                                        (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f));
+        viewInv = lookAtRH(eye, center, up).inverse();
+        projInv = perspectiveVk(60.0f * 3.14159265f / 180.0f,(float)WIDTH / (float)HEIGHT, 0.1f, 100.0f).inverse();
     }
 
     void rayThroughPixel(int px, int py, Vec3& eye, Vec3& dir) {
@@ -853,10 +852,10 @@ private:
         float dx = 2.0f * ((px + 0.5f) / (float)WIDTH)  - 1.0f;
         float dy = 2.0f * ((py + 0.5f) / (float)HEIGHT) - 1.0f;
         float clip[4] = { dx, dy, 1.0f, 1.0f }, tgt[4];
-        mul4(projInv, clip, tgt);
+        projInv.multiply(clip, tgt);
         Vec3 t3 = (Vec3{ tgt[0], tgt[1], tgt[2] }).normalize();
         float dir4[4] = { t3.x, t3.y, t3.z, 0.0f }, out4[4];
-        mul4(viewInv, dir4, out4);
+        viewInv.multiply(dir4, out4);
         dir = (Vec3{ out4[0], out4[1], out4[2] }).normalize();
     }
 
@@ -873,8 +872,8 @@ private:
         Mat4 proj = perspectiveVk(60.0f * 3.14159265f / 180.0f,
                                   (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
         float v4[4] = { w.x, w.y, w.z, 1.0f }, e4[4], c4[4];
-        mul4(view, v4, e4);
-        mul4(proj, e4, c4);
+        view.multiply(v4, e4);
+        proj.multiply(e4, c4);
         if (c4[3] <= 1e-5f) return false;
         // perspectiveVk bakes the Vulkan Y flip in, so NDC y already points down
         // like window coordinates do.

@@ -3,69 +3,20 @@
 
 #include "vec3.h"
 
-struct Mat4 { float m[16] = {}; }; // column-major: m[col*4 + row]
+struct Mat4
+{
+	float m[16] = { };
 
-static Mat4 mat4Identity() {
-    Mat4 r; r.m[0] = r.m[5] = r.m[10] = r.m[15] = 1.0f; return r;
-}
+    static constexpr Mat4 identity() noexcept
+    {
+        Mat4 r;
+        r.m[0] = r.m[5] = r.m[10] = r.m[15] = 1.0f;
+        return r;
+    }
 
-static Mat4 lookAtRH(Vec3 eye, Vec3 center, Vec3 up) {
-    Vec3 f = (center - eye).normalize();
-    Vec3 s = f.cross(up).normalize();
-    Vec3 u = s.cross(f);
-    Mat4 r = mat4Identity();
-    r.m[0] = s.x; r.m[4] = s.y; r.m[8] = s.z;
-    r.m[1] = u.x; r.m[5] = u.y; r.m[9] = u.z;
-    r.m[2] = -f.x; r.m[6] = -f.y; r.m[10] = -f.z;
-    r.m[12] = -s.dot(eye);
-    r.m[13] = -u.dot(eye);
-    r.m[14] = f.dot(eye);
-    return r;
-}
+    Mat4 inverse() const noexcept;
+    void multiply(const float v[4], float out[4]) const noexcept;
+};
 
-// Right-handed, zero-to-one depth (Vulkan), with the Y flip baked in.
-static Mat4 perspectiveVk(float fovY, float aspect, float zNear, float zFar) {
-    float t = std::tan(fovY * 0.5f);
-    Mat4 r; // all zero
-    r.m[0] = 1.0f / (aspect * t);
-    r.m[5] = -1.0f / t;                  // negative => Vulkan Y-down clip space
-    r.m[10] = zFar / (zNear - zFar);
-    r.m[11] = -1.0f;
-    r.m[14] = -(zFar * zNear) / (zFar - zNear);
-    return r;
-}
-
-static void mul4(const Mat4& a, const float v[4], float out[4]) {
-    for (int r = 0; r < 4; ++r)
-        out[r] = a.m[0 * 4 + r] * v[0] + a.m[1 * 4 + r] * v[1] +
-        a.m[2 * 4 + r] * v[2] + a.m[3 * 4 + r] * v[3];
-}
-
-// General 4x4 inverse (adjugate / determinant).
-static Mat4 inverse(const Mat4& in) {
-    const float* m = in.m;
-    float inv[16];
-    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
-    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
-    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
-    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
-    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
-    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
-    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
-    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
-    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
-    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
-    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
-    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
-    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
-    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
-    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
-    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
-
-    float det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
-    Mat4 out;
-    if (det == 0.0f) return mat4Identity();
-    det = 1.0f / det;
-    for (int i = 0; i < 16; ++i) out.m[i] = inv[i] * det;
-    return out;
-}
+Mat4 lookAtRH(Vec3 eye, Vec3 center, Vec3 up) noexcept;
+Mat4 perspectiveVk(float fovY, float aspect, float zNear, float zFar) noexcept;
