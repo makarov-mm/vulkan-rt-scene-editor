@@ -93,5 +93,8 @@ xcopy /Y /D "$(SolutionDir)icons\*.png" "$(OutDir)icons\"</Command>
     <None Include="compile_shaders.bat" />
     <None Include="README.md" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\vec3.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

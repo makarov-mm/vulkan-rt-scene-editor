@@ -40,6 +40,8 @@ namespace Gdiplus { using std::min; using std::max; }
 #include <fstream>
 #include <algorithm>
 
+#include "vec3.h"
+
 // -----------------------------------------------------------------------------
 //  Small helpers
 // -----------------------------------------------------------------------------
@@ -69,22 +71,7 @@ static uint32_t alignUp(uint32_t v, uint32_t a) { return (v + a - 1) & ~(a - 1);
 // -----------------------------------------------------------------------------
 //  Tiny column-major math (camera + object transforms)
 // -----------------------------------------------------------------------------
-struct Vec3 {
-    float x = 0, y = 0, z = 0;
-    Vec3() {}
-    Vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
-};
-static Vec3 operator+(Vec3 a, Vec3 b) { return { a.x + b.x, a.y + b.y, a.z + b.z }; }
-static Vec3 operator-(Vec3 a, Vec3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
-static Vec3 operator*(Vec3 a, float s) { return { a.x * s, a.y * s, a.z * s }; }
-static float dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-static Vec3 cross(Vec3 a, Vec3 b) {
-    return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
-}
-static Vec3 normalize(Vec3 v) {
-    float l = std::sqrt(dot(v, v));
-    return l > 0 ? Vec3{ v.x / l, v.y / l, v.z / l } : v;
-}
+
 
 // 3x3 with column vectors; axis-angle construction and composition.
 struct Mat3 { Vec3 c0{ 1,0,0 }, c1{ 0,1,0 }, c2{ 0,0,1 }; };
@@ -95,7 +82,7 @@ static Mat3 mat3Mul(const Mat3& a, const Mat3& b) {
     return r;
 }
 static Mat3 rotAxis(Vec3 axis, float ang) {
-    axis = normalize(axis);
+    axis = axis.normalize();
     float c = std::cos(ang), s = std::sin(ang), t = 1 - c, x = axis.x, y = axis.y, z = axis.z;
     Mat3 m;
     m.c0 = { c + x * x * t,     x * y * t + z * s, x * z * t - y * s };
@@ -111,16 +98,16 @@ static Mat4 mat4Identity() {
 }
 
 static Mat4 lookAtRH(Vec3 eye, Vec3 center, Vec3 up) {
-    Vec3 f = normalize(center - eye);
-    Vec3 s = normalize(cross(f, up));
-    Vec3 u = cross(s, f);
+    Vec3 f = (center - eye).normalize();
+    Vec3 s = f.cross(up).normalize();
+    Vec3 u = s.cross(f);
     Mat4 r = mat4Identity();
     r.m[0] = s.x; r.m[4] = s.y; r.m[8]  = s.z;
     r.m[1] = u.x; r.m[5] = u.y; r.m[9]  = u.z;
     r.m[2] = -f.x; r.m[6] = -f.y; r.m[10] = -f.z;
-    r.m[12] = -dot(s, eye);
-    r.m[13] = -dot(u, eye);
-    r.m[14] =  dot(f, eye);
+    r.m[12] = -s.dot(eye);
+    r.m[13] = -u.dot(eye);
+    r.m[14] = f.dot(eye);
     return r;
 }
 
@@ -573,8 +560,8 @@ private:
             // dx spins about the world Y axis, dy about the camera's right axis.
             Vec3 eye; Mat4 vi, pi;
             cameraBasis(eye, vi, pi);
-            Vec3 fwd   = normalize(Vec3{ 0, 1, 0 } - eye);   // toward the orbit centre (0,1,0)
-            Vec3 right = normalize(cross(fwd, { 0, 1, 0 }));
+            Vec3 fwd   = (Vec3{ 0, 1, 0 } - eye).normalize();   // toward the orbit centre (0,1,0)
+            Vec3 right = (fwd.cross({ 0, 1, 0 })).normalize();
             Mat3 dR = rotAxis({ 0, 1, 0 }, dx * 0.01f);
             if (dy) dR = mat3Mul(rotAxis(right, dy * 0.01f), dR);
             for (auto& o : objects)
@@ -953,10 +940,10 @@ private:
         float dy = 2.0f * ((py + 0.5f) / (float)HEIGHT) - 1.0f;
         float clip[4] = { dx, dy, 1.0f, 1.0f }, tgt[4];
         mul4(projInv, clip, tgt);
-        Vec3 t3 = normalize({ tgt[0], tgt[1], tgt[2] });
+        Vec3 t3 = (Vec3{ tgt[0], tgt[1], tgt[2] }).normalize();
         float dir4[4] = { t3.x, t3.y, t3.z, 0.0f }, out4[4];
         mul4(viewInv, dir4, out4);
-        dir = normalize({ out4[0], out4[1], out4[2] });
+        dir = (Vec3{ out4[0], out4[1], out4[2] }).normalize();
     }
 
     // World point -> viewport pixel. Returns false if behind the camera.
@@ -994,8 +981,8 @@ private:
             Vec3  c = o.pos + mul3(o.rot, mi.bcenter * o.scale);
             float r = mi.bradius * o.scale;
             Vec3  oc = eye - c;
-            float b  = dot(oc, dir);
-            float cc = dot(oc, oc) - r * r;
+            float b  = oc.dot(dir);
+            float cc = oc.dot(oc) - r * r;
             float h  = b * b - cc;
             if (h < 0.0f) continue;
             h = std::sqrt(h);
@@ -1396,7 +1383,7 @@ private:
         for (uint32_t i = m.firstVert; i < m.firstVert + m.vertCount; ++i) {
             Vec3 p{ protoVerts[i].pos[0], protoVerts[i].pos[1], protoVerts[i].pos[2] };
             Vec3 d = p - m.bcenter;
-            float dd = dot(d, d);
+            float dd = d.dot(d);
             if (dd > r2) r2 = dd;
         }
         m.bradius = std::sqrt(r2);
@@ -1436,9 +1423,9 @@ private:
 
     // Flat-shaded triangle with an outward normal (oriented away from an interior point).
     void flatTri(Vec3 a, Vec3 b, Vec3 c, Vec3 interior) {
-        Vec3 nn = normalize(cross(b - a, c - a));
+        Vec3 nn = ((b - a).cross(c - a)).normalize();
         Vec3 cen = (a + b + c) * (1.0f / 3.0f);
-        if (dot(nn, cen - interior) < 0.0f) nn = nn * -1.0f;
+        if (nn.dot(cen - interior) < 0.0f) nn = nn * -1.0f;
         uint32_t t = (uint32_t)protoVerts.size();
         pushVert(a, nn); pushVert(b, nn); pushVert(c, nn);
         protoIndices.push_back(t); protoIndices.push_back(t + 1); protoIndices.push_back(t + 2);
@@ -1469,7 +1456,7 @@ private:
         for (int f = 0; f < 6; ++f) {
             Vec3 N = nrm[f], u, w;
             if (std::fabs(N.y) > 0.5f) { u = { 1,0,0 }; w = { 0,0,1 }; }
-            else { u = { 0,1,0 }; w = cross(N, u); }
+            else { u = { 0,1,0 }; w = N.cross(u); }
             Vec3 c = N * h;
             Vec3 p0 = c - u * h - w * h, p1 = c + u * h - w * h, p2 = c + u * h + w * h, p3 = c - u * h + w * h;
             uint32_t b = (uint32_t)protoVerts.size();
@@ -1552,10 +1539,10 @@ private:
                 Vec3 p = pos(i, j);
                 Vec3 du = pos(i + 1, j) - pos(i - 1, j);
                 Vec3 dv = pos(i, j + 1) - pos(i, j - 1);
-                Vec3 nn = cross(du, dv);
-                float nl = std::sqrt(dot(nn, nn));
-                nn = (nl > 1e-5f) ? nn * (1.0f / nl) : normalize(p);
-                if (outward && dot(nn, p) < 0.0f) nn = nn * -1.0f;
+                Vec3 nn = du.cross(dv);
+                float nl = std::sqrt(nn.dot(nn));
+                nn = (nl > 1e-5f) ? nn * (1.0f / nl) : (p).normalize();
+                if (outward && nn.dot(p) < 0.0f) nn = nn * -1.0f;
                 pushVert(p, nn);
             }
         }
@@ -1607,7 +1594,7 @@ private:
         };
         float maxR = 1e-6f;
         for (int i = 0; i <= U; ++i)
-            for (int j = 0; j <= Vr; ++j) { Vec3 q = raw(i, j); float d = std::sqrt(dot(q, q)); if (d > maxR) maxR = d; }
+            for (int j = 0; j <= Vr; ++j) { Vec3 q = raw(i, j); float d = std::sqrt(q.dot(q)); if (d > maxR) maxR = d; }
         float scale = 1.6f / maxR;
         genGrid(U, Vr, true, [&](int i, int j) -> Vec3 { return raw(i, j) * scale; });
     }
