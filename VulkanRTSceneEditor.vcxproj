@@ -84,6 +84,9 @@ xcopy /Y /D "$(SolutionDir)icons\*.png" "$(OutDir)icons\"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\mat3.cpp" />
+    <ClCompile Include="src\mat4.cpp" />
+    <ClCompile Include="src\vec3.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\raygen.rgen" />
@@ -94,6 +97,8 @@ xcopy /Y /D "$(SolutionDir)icons\*.png" "$(OutDir)icons\"</Command>
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\mat3.h" />
+    <ClInclude Include="src\mat4.h" />
     <ClInclude Include="src\vec3.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

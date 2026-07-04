@@ -41,6 +41,8 @@ namespace Gdiplus { using std::min; using std::max; }
 #include <algorithm>
 
 #include "vec3.h"
+#include "mat3.h"
+#include "mat4.h"
 
 // -----------------------------------------------------------------------------
 //  Small helpers
@@ -68,95 +70,7 @@ static void vkCheck(VkResult r, const char* what) {
 
 static uint32_t alignUp(uint32_t v, uint32_t a) { return (v + a - 1) & ~(a - 1); }
 
-// -----------------------------------------------------------------------------
-//  Tiny column-major math (camera + object transforms)
-// -----------------------------------------------------------------------------
 
-
-// 3x3 with column vectors; axis-angle construction and composition.
-struct Mat3 { Vec3 c0{ 1,0,0 }, c1{ 0,1,0 }, c2{ 0,0,1 }; };
-static Vec3 mul3(const Mat3& m, Vec3 v) { return m.c0 * v.x + m.c1 * v.y + m.c2 * v.z; }
-static Mat3 mat3Mul(const Mat3& a, const Mat3& b) {
-    Mat3 r;
-    r.c0 = mul3(a, b.c0); r.c1 = mul3(a, b.c1); r.c2 = mul3(a, b.c2);
-    return r;
-}
-static Mat3 rotAxis(Vec3 axis, float ang) {
-    axis = axis.normalize();
-    float c = std::cos(ang), s = std::sin(ang), t = 1 - c, x = axis.x, y = axis.y, z = axis.z;
-    Mat3 m;
-    m.c0 = { c + x * x * t,     x * y * t + z * s, x * z * t - y * s };
-    m.c1 = { x * y * t - z * s, c + y * y * t,     y * z * t + x * s };
-    m.c2 = { x * z * t + y * s, y * z * t - x * s, c + z * z * t };
-    return m;
-}
-
-struct Mat4 { float m[16] = {}; }; // column-major: m[col*4 + row]
-
-static Mat4 mat4Identity() {
-    Mat4 r; r.m[0] = r.m[5] = r.m[10] = r.m[15] = 1.0f; return r;
-}
-
-static Mat4 lookAtRH(Vec3 eye, Vec3 center, Vec3 up) {
-    Vec3 f = (center - eye).normalize();
-    Vec3 s = f.cross(up).normalize();
-    Vec3 u = s.cross(f);
-    Mat4 r = mat4Identity();
-    r.m[0] = s.x; r.m[4] = s.y; r.m[8]  = s.z;
-    r.m[1] = u.x; r.m[5] = u.y; r.m[9]  = u.z;
-    r.m[2] = -f.x; r.m[6] = -f.y; r.m[10] = -f.z;
-    r.m[12] = -s.dot(eye);
-    r.m[13] = -u.dot(eye);
-    r.m[14] = f.dot(eye);
-    return r;
-}
-
-// Right-handed, zero-to-one depth (Vulkan), with the Y flip baked in.
-static Mat4 perspectiveVk(float fovY, float aspect, float zNear, float zFar) {
-    float t = std::tan(fovY * 0.5f);
-    Mat4 r; // all zero
-    r.m[0]  = 1.0f / (aspect * t);
-    r.m[5]  = -1.0f / t;                  // negative => Vulkan Y-down clip space
-    r.m[10] = zFar / (zNear - zFar);
-    r.m[11] = -1.0f;
-    r.m[14] = -(zFar * zNear) / (zFar - zNear);
-    return r;
-}
-
-static void mul4(const Mat4& a, const float v[4], float out[4]) {
-    for (int r = 0; r < 4; ++r)
-        out[r] = a.m[0 * 4 + r] * v[0] + a.m[1 * 4 + r] * v[1] +
-                 a.m[2 * 4 + r] * v[2] + a.m[3 * 4 + r] * v[3];
-}
-
-// General 4x4 inverse (adjugate / determinant).
-static Mat4 inverse(const Mat4& in) {
-    const float* m = in.m;
-    float inv[16];
-    inv[0]  =  m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
-    inv[4]  = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
-    inv[8]  =  m[4]*m[9]*m[15]  - m[4]*m[11]*m[13] - m[8]*m[5]*m[15] + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
-    inv[12] = -m[4]*m[9]*m[14]  + m[4]*m[10]*m[13] + m[8]*m[5]*m[14] - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
-    inv[1]  = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15] - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
-    inv[5]  =  m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15] + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
-    inv[9]  = -m[0]*m[9]*m[15]  + m[0]*m[11]*m[13] + m[8]*m[1]*m[15] - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
-    inv[13] =  m[0]*m[9]*m[14]  - m[0]*m[10]*m[13] - m[8]*m[1]*m[14] + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
-    inv[2]  =  m[1]*m[6]*m[15]  - m[1]*m[7]*m[14]  - m[5]*m[2]*m[15] + m[5]*m[3]*m[14] + m[13]*m[2]*m[7]  - m[13]*m[3]*m[6];
-    inv[6]  = -m[0]*m[6]*m[15]  + m[0]*m[7]*m[14]  + m[4]*m[2]*m[15] - m[4]*m[3]*m[14] - m[12]*m[2]*m[7]  + m[12]*m[3]*m[6];
-    inv[10] =  m[0]*m[5]*m[15]  - m[0]*m[7]*m[13]  - m[4]*m[1]*m[15] + m[4]*m[3]*m[13] + m[12]*m[1]*m[7]  - m[12]*m[3]*m[5];
-    inv[14] = -m[0]*m[5]*m[14]  + m[0]*m[6]*m[13]  + m[4]*m[1]*m[14] - m[4]*m[2]*m[13] - m[12]*m[1]*m[6]  + m[12]*m[2]*m[5];
-    inv[3]  = -m[1]*m[6]*m[11]  + m[1]*m[7]*m[10]  + m[5]*m[2]*m[11] - m[5]*m[3]*m[10] - m[9]*m[2]*m[7]   + m[9]*m[3]*m[6];
-    inv[7]  =  m[0]*m[6]*m[11]  - m[0]*m[7]*m[10]  - m[4]*m[2]*m[11] + m[4]*m[3]*m[10] + m[8]*m[2]*m[7]   - m[8]*m[3]*m[6];
-    inv[11] = -m[0]*m[5]*m[11]  + m[0]*m[7]*m[9]   + m[4]*m[1]*m[11] - m[4]*m[3]*m[9]  - m[8]*m[1]*m[7]   + m[8]*m[3]*m[5];
-    inv[15] =  m[0]*m[5]*m[10]  - m[0]*m[6]*m[9]   - m[4]*m[1]*m[10] + m[4]*m[2]*m[9]  + m[8]*m[1]*m[6]   - m[8]*m[2]*m[5];
-
-    float det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
-    Mat4 out;
-    if (det == 0.0f) return mat4Identity();
-    det = 1.0f / det;
-    for (int i = 0; i < 16; ++i) out.m[i] = inv[i] * det;
-    return out;
-}
 
 // -----------------------------------------------------------------------------
 //  GPU-visible data (matches the GLSL std430 layouts)
@@ -562,10 +476,10 @@ private:
             cameraBasis(eye, vi, pi);
             Vec3 fwd   = (Vec3{ 0, 1, 0 } - eye).normalize();   // toward the orbit centre (0,1,0)
             Vec3 right = (fwd.cross({ 0, 1, 0 })).normalize();
-            Mat3 dR = rotAxis({ 0, 1, 0 }, dx * 0.01f);
-            if (dy) dR = mat3Mul(rotAxis(right, dy * 0.01f), dR);
+            Mat3 dR = rot_axis({ 0, 1, 0 }, dx * 0.01f);
+            if (dy) dR = rot_axis(right, dy * 0.01f) * dR;
             for (auto& o : objects)
-                if (o.sel) o.rot = mat3Mul(dR, o.rot);
+                if (o.sel) o.rot = dR * o.rot;
             markSceneDirty();
         }
 
@@ -978,7 +892,7 @@ private:
         for (size_t i = 0; i < objects.size(); ++i) {
             const SceneObject& o = objects[i];
             const MeshInfo& mi = meshes[o.mesh];
-            Vec3  c = o.pos + mul3(o.rot, mi.bcenter * o.scale);
+            Vec3  c = o.pos + o.rot * (mi.bcenter * o.scale);
             float r = mi.bradius * o.scale;
             Vec3  oc = eye - c;
             float b  = oc.dot(dir);
@@ -1000,7 +914,7 @@ private:
         if (!additive) clearSelection();
         for (auto& o : objects) {
             const MeshInfo& mi = meshes[o.mesh];
-            Vec3 c = o.pos + mul3(o.rot, mi.bcenter * o.scale);
+            Vec3 c = o.pos + o.rot * (mi.bcenter * o.scale);
             float sx, sy;
             if (!projectToScreen(c, sx, sy)) continue;
             // Approximate projected radius from a second projected point.
@@ -1656,8 +1570,7 @@ private:
             return Vec3{ std::cos(ang) * ring, 0.0f, std::sin(ang) * ring };
         };
 
-        add(M_SUPERTOROID, { 0.0f, 2.7f, 0.0f }, { 1.0f, 1.0f, 1.0f },
-            rotAxis({ 1.0f, 0.25f, 0.35f }, 0.7f));
+        add(M_SUPERTOROID, { 0.0f, 2.7f, 0.0f }, { 1.0f, 1.0f, 1.0f }, rot_axis({ 1.0f, 0.25f, 0.35f }, 0.7f));
 
         Vec3 p;
         p = ringPos(0); add(M_SPHERE,       { p.x, 1.3f,  p.z }, { 0.55f, 0.72f, 1.00f });
