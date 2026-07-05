@@ -86,7 +86,10 @@ xcopy /Y /D "$(SolutionDir)icons\*.png" "$(OutDir)icons\"</Command>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mat3.cpp" />
     <ClCompile Include="src\mat4.cpp" />
+    <ClCompile Include="src\rt_functions.cpp" />
+    <ClCompile Include="src\scene_editor.cpp" />
     <ClCompile Include="src\vec3.cpp" />
+    <ClCompile Include="src\vk_utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\raygen.rgen" />
@@ -97,9 +100,19 @@ xcopy /Y /D "$(SolutionDir)icons\*.png" "$(OutDir)icons\"</Command>
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\buffer.h" />
+    <ClInclude Include="src\config.h" />
+    <ClInclude Include="src\editor_ui.h" />
+    <ClInclude Include="src\gpu_types.h" />
     <ClInclude Include="src\mat3.h" />
     <ClInclude Include="src\mat4.h" />
+    <ClInclude Include="src\mesh_info.h" />
+    <ClInclude Include="src\platform.h" />
+    <ClInclude Include="src\rt_functions.h" />
+    <ClInclude Include="src\scene_editor.h" />
+    <ClInclude Include="src\scene_object.h" />
     <ClInclude Include="src\vec3.h" />
+    <ClInclude Include="src\vk_utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
