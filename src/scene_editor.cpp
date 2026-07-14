@@ -1,5 +1,10 @@
 #include "scene_editor.h"
 
+#include <numbers>
+
+// One project-wide pi (C++20 <numbers>), instead of per-function literals.
+constexpr float PI = std::numbers::pi_v<float>;
+
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -565,7 +570,7 @@ void SceneEditor::cameraBasis(Vec3& eye, Mat4& viewInv, Mat4& projInv) {
             center.y + camDist * sp,
             center.z + camDist * cp * sy };
     viewInv = lookAtRH(eye, center, up).inverse();
-    projInv = perspectiveVk(60.0f * 3.14159265f / 180.0f,(float)WIDTH / (float)HEIGHT, 0.1f, 100.0f).inverse();
+    projInv = perspectiveVk(60.0f * PI / 180.0f,(float)WIDTH / (float)HEIGHT, 0.1f, 100.0f).inverse();
 }
 
 void SceneEditor::rayThroughPixel(int px, int py, Vec3& eye, Vec3& dir) {
@@ -590,7 +595,7 @@ bool SceneEditor::projectToScreen(Vec3 w, float& sx, float& sy) {
               center.y + camDist * sp,
               center.z + camDist * cp * sy2 };
     Mat4 view = lookAtRH(eye, center, up);
-    Mat4 proj = perspectiveVk(60.0f * 3.14159265f / 180.0f,
+    Mat4 proj = perspectiveVk(60.0f * PI / 180.0f,
                               (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
     float v4[4] = { w.x, w.y, w.z, 1.0f }, e4[4], c4[4];
     view.multiply(v4, e4);
@@ -1010,10 +1015,10 @@ void SceneEditor::genSphere(float radius, int stacks, int slices) {
     uint32_t base = (uint32_t)protoVerts.size();
     for (int i = 0; i <= stacks; ++i) {
         float v = (float)i / stacks;
-        float phi = v * 3.14159265f;              // 0..pi
+        float phi = v * PI;              // 0..pi
         for (int j = 0; j <= slices; ++j) {
             float u = (float)j / slices;
-            float theta = u * 2.0f * 3.14159265f; // 0..2pi
+            float theta = u * 2.0f * PI; // 0..2pi
             Vec3 n{ std::sin(phi) * std::cos(theta),
                     std::cos(phi),
                     std::sin(phi) * std::sin(theta) };
@@ -1041,7 +1046,6 @@ void SceneEditor::flatTri(Vec3 a, Vec3 b, Vec3 c, Vec3 interior) {
 }
 
 void SceneEditor::genDiamond(float s, int N) {
-    const float PI = 3.14159265358979f;
     const float rt = 0.50f, ht = 0.42f, rg = 1.00f, hp = 1.15f;
     Vec3 c0{ 0, (ht - hp) * 0.5f * s, 0 };
     auto T = [&](int i) { float a = (float)((i % N + N) % N) * 2 * PI / N;
@@ -1087,7 +1091,6 @@ void SceneEditor::genPyramid(float s, float h) {
 }
 
 void SceneEditor::genCylinder(float r, float h, int N) {
-    const float PI = 3.14159265358979f;
     Vec3 base{ 0,0,0 }, top{ 0,h,0 };
     for (int i = 0; i < N; ++i) {
         float a0 = 2 * PI * i / N, a1 = 2 * PI * (i + 1) / N;
@@ -1133,7 +1136,6 @@ void SceneEditor::genDodecahedron(float s) {
 }
 
 void SceneEditor::genSupertoroid(int U, int Vr) {
-    const float PI = 3.14159265358979f;
     const float n = 2.2f, twist = 3.0f, a = 2.2f;
     genGrid(U, Vr, false, [&](int i, int j) -> Vec3 {
         float u = 2 * PI * (float)((i % U + U) % U) / U;
@@ -1157,7 +1159,6 @@ float SceneEditor::superformula(float ang, float m, float n1, float n2, float n3
 }
 
 void SceneEditor::genSupershape(int U, int Vr) {
-    const float PI = 3.14159265358979f;
     const float m1 = 6, n1 = 5, n2 = 5, n3 = 5;
     auto raw = [&](int i, int j) -> Vec3 {
         float th = -PI + 2 * PI * (float)((i % U + U) % U) / U;
@@ -1225,7 +1226,7 @@ void SceneEditor::createDefaultScene() {
         o.reflectivity = 0.0f;
         objects.push_back(o);
     };
-    const float ring = 6.2f, PI = 3.14159265358979f;
+    const float ring = 6.2f;
     auto ringPos = [&](int k) {
         float ang = (float)k / 6.0f * 2.0f * PI;
         return Vec3{ std::cos(ang) * ring, 0.0f, std::sin(ang) * ring };
@@ -1383,7 +1384,7 @@ void SceneEditor::updateSceneBuffers() {
     objData[0].color[0] = 0.8f; objData[0].color[1] = 0.8f; objData[0].color[2] = 0.8f;
     objData[0].color[3] = 0.0f;
     objData[0].params[0] = 0.0f;   // matId floor
-    objData[0].params[1] = 0.4f;   // floor reflectivity
+    objData[0].params[1] = 0.18f;  // floor reflectivity (matches the path-traced version)
 
     // Slot 1: visible emissive area light. Radius must match lightPos[3]
     // in updateUniforms: sphere prototype radius 1.3 * scale = 1.2.
@@ -1753,7 +1754,7 @@ void SceneEditor::updateUniforms() {
     data.lightPos[3] = 1.2f;      // light sphere radius (bigger = softer shadows)
     data.params[0] = t;
     data.params[1] = 8.0f;        // max bounces (glass needs a few)
-    data.params[2] = 1.4f;        // light intensity
+    data.params[2] = 1.0f;        // light intensity (direct level matches the path-traced version)
     data.params[3] = 12.0f;       // samples/frame (multiple of 3 for even dispersion)
     data.frame[0]  = accumFrame;
     data.frame[1]  = totalFrame;

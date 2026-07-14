@@ -1,5 +1,13 @@
 # Vulkan Hardware Ray Tracing - Scene Editor
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/makarov-mm?style=flat&logo=github)](https://github.com/sponsors/makarov-mm)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![C++](https://img.shields.io/badge/C%2B%2B-00599C)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/makarov-mm/)
+[![Threads](https://img.shields.io/badge/Threads-000000?logo=threads&logoColor=white)](https://www.threads.net/@m.m.makarov)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?logo=instagram&logoColor=white)](https://www.instagram.com/m.m.makarov/)
+![Vulkan](https://img.shields.io/badge/Vulkan-AC162C?logo=vulkan&logoColor=white)
+
 An interactive scene editor on top of a real-time, hardware-accelerated ray
 tracer (`VK_KHR_ray_tracing_pipeline`). Add, delete, move and rotate objects in
 a fully ray-traced scene - dispersive glass, soft area-light shadows and
@@ -91,6 +99,30 @@ BLASes are static and never rebuilt, which is what lets them use
 `PREFER_FAST_TRACE` for maximum traversal performance. Object picking is a
 CPU ray against per-instance bounding spheres; marquee selection projects the
 same bounding spheres to the screen and tests them against the rectangle.
+
+## License
+
+MIT License
+
+Copyright (c) 2026 Mykhailo Makarov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## License
 
